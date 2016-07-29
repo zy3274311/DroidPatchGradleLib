@@ -1,0 +1,62 @@
+plugins {
+    id "com.jfrog.bintray" version "1.7"
+}
+apply plugin: 'groovy'
+
+dependencies {
+    compile gradleApi()
+    compile 'com.android.tools.build:gradle:2.1.2'
+    compile 'org.javassist:javassist:3.20.0-GA'
+}
+
+apply plugin: 'maven-publish'
+
+def versionName = "1.0.6"
+group "com.qihoo.patch.plugin"
+version versionName
+def projectName = "droidpatchgradle"
+
+// custom tasks for creating source/javadoc jars
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+// add javadoc/source jar tasks as artifacts
+artifacts {
+    archives sourcesJar, javadocJar
+}
+
+bintray {
+    user = BINTRAY_USER
+    key = BINTRAY_KEY
+    publications = ['mavenJava']
+    pkg {
+        repo = 'maven'
+        name = projectName
+        desc = 'a gradle plugin for DroidPatch to inject some code into classes'
+        websiteUrl = 'https://github.com/zy3274311'
+        issueTrackerUrl = 'https://github.com/zy3274311/DroidPatchGradleAPP/issues'
+        vcsUrl = 'https://github.com/zy3274311/DroidPatchGradleAPP'
+        publicDownloadNumbers = true
+        licenses = ['Apache-2.0']
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            Artifact sourcesJar
+            Artifact javadocJar
+            groupId group
+            artifactId projectName
+            version versionName
+        }
+    }
+}
