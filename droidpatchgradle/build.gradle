@@ -11,7 +11,7 @@ dependencies {
 
 apply plugin: 'maven-publish'
 
-def versionName = "1.0.6"
+def versionName = "1.3.6"
 group "com.qihoo.patch.plugin"
 version versionName
 def projectName = "droidpatchgradle"
@@ -41,8 +41,8 @@ bintray {
         name = projectName
         desc = 'a gradle plugin for DroidPatch to inject some code into classes'
         websiteUrl = 'https://github.com/zy3274311'
-        issueTrackerUrl = 'https://github.com/zy3274311/DroidPatchGradleAPP/issues'
-        vcsUrl = 'https://github.com/zy3274311/DroidPatchGradleAPP'
+        issueTrackerUrl = 'https://github.com/zy3274311/DroidPatchGradleLib/issues'
+        vcsUrl = 'https://github.com/zy3274311/DroidPatchGradleLib'
         publicDownloadNumbers = true
         licenses = ['Apache-2.0']
     }

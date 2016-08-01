@@ -18,7 +18,6 @@ public class DroidPatchPlugin implements Plugin<Project>{
             def android = project.extensions.getByType(AppExtension)
             def transform = new DroidPatchTransform(project)
             android.registerTransform(transform)
-
         }
     }
 

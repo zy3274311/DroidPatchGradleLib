@@ -7,6 +7,7 @@ import com.android.dx.command.dexer.DxContext
 import com.android.dx.command.dexer.Main
 import com.android.utils.FileUtils
 import com.google.common.io.Files
+import com.qihoo.gradle.extension.ConfigPatchExtension
 import com.qihoo.gradle.plugin.util.JavassistUtil
 import com.qihoo.gradle.plugin.util.MD5Util
 import javassist.*
@@ -17,9 +18,6 @@ import org.gradle.api.tasks.TaskContainer
 
 import java.util.jar.*
 
-/**
- * Created by zhangying-pd on 2016/7/14.
- */
 public class DroidPatchTransform extends Transform {
     String patchDir
     String buildDir
@@ -27,9 +25,9 @@ public class DroidPatchTransform extends Transform {
 
     DroidPatchTransform(Project project) {
         this.project = project
-
         patchDir = project.rootDir.absolutePath + File.separator + "patch"
         buildDir = project.buildDir.absolutePath + File.separator + "patch"
+        project.extensions.create("patchConfigs", ConfigPatchExtension);
     }
 
     @Override
@@ -79,7 +77,6 @@ public class DroidPatchTransform extends Transform {
             input.directoryInputs.each { DirectoryInput directoryInput ->
                 System.out.println("DroidPatchTransform transform directoryInput " + directoryInput.file.absolutePath)
                 System.out.println("\n\t")
-                //TODO double xxxxjar.jar
                 File dest = outputProvider.getContentLocation(directoryInput.file.name, directoryInput.contentTypes, directoryInput.scopes, Format.DIRECTORY)
                 System.out.println("DroidPatchTransform transform outputProvider dest " + dest)
                 FileUtils.copy(directoryInput.file, dest.getParentFile())
@@ -88,6 +85,9 @@ public class DroidPatchTransform extends Transform {
                 String jarName = jarInput.file.absolutePath
                 System.out.println("DroidPatchTransform transform jarInput " + jarName)
                 String fileName = DigestUtils.md5Hex(jarName) + jarInput.file.name
+                if(fileName.endsWith(".jar")){
+                    fileName = fileName.substring(0, fileName.length()-4)
+                }
                 File dest = outputProvider.getContentLocation(fileName, jarInput.contentTypes, jarInput.scopes, Format.JAR)
                 File destDir = dest.parentFile
                 if (!destDir.exists()) {
@@ -125,18 +125,39 @@ public class DroidPatchTransform extends Transform {
         File jarFile = new File(jarPath)
         File tempDir = new File(buildDir, "temp")
         String classesDir = tempDir.absolutePath
-
         Map<String, String> list = unZipJar(jarPath, classesDir)
-
         injectDir(classesDir, list)
         String name = jarFile.name
         jarFile.delete()
         File reZipJarFile = new File(jarFile.parent, name)
         generateJar(reZipJarFile, classesDir, list)
+        if(name.endsWith(".jar")){
+            name = name.substring(0, name.length()-4)
+        }
+
+        def packPatchDexEnable = project.patchConfigs.packPatchDexEnable
+        System.out.println("DroidPatchTransform packPatchDexEnable " + packPatchDexEnable)
         //TODO many jars  so must multy properties
-        createDirProperties(classesDir, list)
-//        File patchFile = new File(patchDir, "patch.dex")
-//        generatePatchDex(patchFile, classesDir, list)
+        //TODO instant-run
+        //TODO debug no jar but classes
+        def android = project.extensions.getByType(AppExtension)
+        def versionName = android.defaultConfig.versionName
+
+        String dir = patchDir + File.separator + versionName;
+        File dirFile = new File(dir)
+        System.out.println("DroidPatchTransform dirFile " + dir)
+        if(!dirFile.exists()){
+            boolean mkDirsOK = dirFile.mkdirs()
+            System.out.println("DroidPatchTransform mkDirsOK " + mkDirsOK)
+        }
+
+        File signFile = new File(dir, name+"-last-sign.properties")
+        if(packPatchDexEnable){
+            File patchFile = new File(dir, name+"-patch.dex")
+            generatePatchDex(signFile,patchFile, classesDir, list)
+        }else {
+            createDirProperties(signFile, classesDir, list)
+        }
     }
 
     def injectDir(String dir, Map<String, String> list) {
@@ -172,7 +193,6 @@ public class DroidPatchTransform extends Transform {
 
         Annotation annotation = JavassistUtil.getAnnotation(cc, "com.qihoo.library.annotation.UnInject")
         if (annotation == null) {
-            System.out.println("DroidPatchTransform injectClass " + className)
             try {
                 CtConstructor[] cts = cc.getDeclaredConstructors()
                 //TODO Code Attribute mybe null
@@ -235,7 +255,6 @@ public class DroidPatchTransform extends Transform {
         JarOutputStream jos = null;
         try {
             OutputStream os = new FileOutputStream(jarFile);
-
             String version = "1.0.0";
             String author = "zhangying";
             Manifest manifest = new Manifest();
@@ -273,26 +292,23 @@ public class DroidPatchTransform extends Transform {
         jos.close();
     }
 
-    def generatePatchDex(File dexFile, String classesDir, Map<String, String> list) {
-        File lastFile = new File(patchDir, "last-sign.properties")
-        InputStream is = new FileInputStream(lastFile)
+    static def generatePatchDex(File signFile, File dexFile, String classesDir, Map<String, String> list) {
+        InputStream is = new FileInputStream(signFile)
 
         Properties properties = new Properties()
         properties.load(is)
 
         list.entrySet().each { entry ->
             String entryName = entry.key
-
             //write the bytes of file into jar
             String classFileName = classesDir + "/" + entryName
             File classFile = new File(classFileName)
             String md5 = MD5Util.getMD5codeFromFile(new File(classFileName))
-            System.out.println("DroidPatchTransform file:" + classFileName)
-            System.out.println("DroidPatchTransform MD5:" + md5)
             String lastMd5 = properties.getProperty(entryName)
-            System.out.println("DroidPatchTransform lastMd5:" + lastMd5)
             if (md5.equals(lastMd5)) {
                 classFile.delete()
+            } else {
+                System.out.println("DroidPatchTransform generatePatchDex file:" + classFileName)
             }
         }
 
@@ -308,28 +324,24 @@ public class DroidPatchTransform extends Transform {
 
     }
 
-    def createDirProperties(String classesDir, Map<String, String> list) {
+    static def createDirProperties(File signFile, String classesDir, Map<String, String> list) {
         Properties properties = new Properties()
 
         list.entrySet().each { entry ->
             String entryName = entry.key
-
             //write the bytes of file into jar
             String outFileName = classesDir + "/" + entryName
             String md5 = MD5Util.getMD5codeFromFile(new File(outFileName))
-            System.out.println("DroidPatchTransform file:" + outFileName)
-            System.out.println("DroidPatchTransform MD5:" + md5)
             properties.put(entryName, md5)
-
         }
-        File outFile = new File(patchDir, "last-sign.properties")
-        if (outFile.exists()) {
-            outFile.delete()
-        }
-        outFile.parentFile.mkdirs()
-        outFile.createNewFile()
 
-        OutputStream os = new FileOutputStream(outFile)
+        if (signFile.exists()) {
+            signFile.delete()
+        }
+
+        signFile.createNewFile()
+
+        OutputStream os = new FileOutputStream(signFile)
         String comment = "droidpatch files signature"
         properties.store(os, comment)
     }
