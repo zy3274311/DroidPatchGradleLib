@@ -11,7 +11,7 @@ dependencies {
 
 apply plugin: 'maven-publish'
 
-def versionName = "1.3.6"
+def versionName = "1.3.7"
 group "com.qihoo.patch.plugin"
 version versionName
 def projectName = "droidpatchgradle"

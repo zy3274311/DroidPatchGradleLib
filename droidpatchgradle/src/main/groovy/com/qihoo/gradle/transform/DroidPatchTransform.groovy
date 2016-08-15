@@ -48,7 +48,7 @@ public class DroidPatchTransform extends Transform {
     /**
      * Returns
      * @return whether the Transform can perform incremental work.
-     */
+    */
     @Override
     boolean isIncremental() {
         return false
@@ -57,12 +57,17 @@ public class DroidPatchTransform extends Transform {
     @Override
     void transform(TransformInvocation transformInvocation) throws TransformException, InterruptedException, IOException {
         super.transform(transformInvocation)
+        def android = project.extensions.getByType(AppExtension)
+        android.transforms.each {transform ->
+            System.out.println("DroidPatchTransform transform name: " + transform.name)
+        }
+
         TaskContainer taskContainer = project.tasks
         taskContainer.each { task ->
             if (task.name.contains("Dex")) {
                 task.doFirst() {
                     task.inputs.files.each { file ->
-                        System.out.println("DroidPatchTransform Dex task inputs: " + file.absolutePath)
+                        System.out.println("DroidPatchTransform Dex task inputs files: " + file.absolutePath)
                         findAndInjectJarFile(file)
                     }
                 }
@@ -121,6 +126,7 @@ public class DroidPatchTransform extends Transform {
 
     }
 
+    //TODO double inject some class files
     def injectJar(String jarPath) throws Exception {
         File jarFile = new File(jarPath)
         File tempDir = new File(buildDir, "temp")
@@ -155,7 +161,7 @@ public class DroidPatchTransform extends Transform {
         if(packPatchDexEnable){
             File patchFile = new File(dir, name+"-patch.dex")
             generatePatchDex(signFile,patchFile, classesDir, list)
-        }else {
+        } else {
             createDirProperties(signFile, classesDir, list)
         }
     }
@@ -174,9 +180,6 @@ public class DroidPatchTransform extends Transform {
         pool.appendClassPath(sdkDir)
         ClassPath classPath = pool.appendClassPath(dir)
         pool.makeClass("com.qihoo.patch.Cat")
-
-//        ClassLoaderHelper helper = ClassLoaderHelper.getSingleton()
-//        helper.loadJar(dir)
 
         list.entrySet().each { entry ->
             String className = entry.value
