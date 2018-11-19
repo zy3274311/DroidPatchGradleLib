@@ -11,7 +11,7 @@ dependencies {
 
 apply plugin: 'maven-publish'
 
-def versionName = "1.3.7"
+def versionName = "1.3.8"
 group "com.qihoo.patch.plugin"
 version versionName
 def projectName = "droidpatchgradle"
@@ -32,9 +32,11 @@ artifacts {
     archives sourcesJar, javadocJar
 }
 
+Properties properties = new Properties()
+properties.load(project.rootProject.file('local.properties').newDataInputStream())
 bintray {
-    user = BINTRAY_USER
-    key = BINTRAY_KEY
+    user = properties.getProperty("bintray.user")
+    key = properties.getProperty("bintray.apikey")
     publications = ['mavenJava']
     pkg {
         repo = 'maven'
